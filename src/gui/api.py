@@ -350,7 +350,7 @@ class Api:
         if hasattr(self, 'flag_manager') and self.flag_manager:
             self.flag_manager.set_hotkeys_inhibited(inhibited)
 
-    def __init__(self):
+    def __init__(self, app_updates=True):
         self._window = None  # Set after window creation
         self._last_apply_time = 0
         self._init_error = None
@@ -460,7 +460,8 @@ class Api:
         # Silently unlock FPS via Roblox's GlobalBasicSettings file (best-effort).
         threading.Thread(target=self._auto_unlock_fps, daemon=True).start()
         threading.Thread(target=self._monitor_loop, daemon=True).start()
-        threading.Thread(target=self._update_loop, daemon=True).start()
+        if app_updates:
+            threading.Thread(target=self._update_loop, daemon=True).start()
         threading.Thread(target=self._auto_version_loop, daemon=True).start()
 
     def _update_loop(self):

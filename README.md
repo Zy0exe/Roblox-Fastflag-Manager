@@ -24,6 +24,48 @@
 
 ---
 
+## Background mode (this fork)
+
+Windows CMD, from the repository folder:
+
+```bat
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+ffm gui
+```
+
+Configure your flags, hotkeys and Auto Apply in the GUI, then fully exit it.
+
+```bat
+ffm start
+ffm status
+ffm stop
+ffm gui
+```
+
+`start` launches a detached background process: no visible window, taskbar
+button, tray icon, or extra console. You may close CMD afterward. The existing
+WebView and app workers still run, using saved settings; Auto Apply must already
+be enabled if you want automatic application. This is not a reduced-memory
+headless engine. The process remains visible in Task Manager.
+
+`status` returns exit code 0 when ready, 1 when starting/stopped. `stop` uses the
+normal application shutdown/cleanup. Stop before reopening the GUI; restoring
+an initially hidden WebView2 window is unreliable. These commands control only
+instances launched by this fork, within the current Windows login session.
+Duplicate launches are rejected. Close any separately installed upstream FFM
+before using this fork.
+
+Startup errors are recorded in `%USERPROFILE%\.FFlagManager\logs\background-startup.log`.
+The fork shares the original application's saved configuration. Automatic app
+update checks are disabled so an upstream installer cannot replace these changes;
+flag-offset and Roblox-version functionality remains as before.
+
+For console diagnostics: `ffm run --background` runs attached to the current CMD.
+For a packaged build, `FFM.exe start`, `FFM.exe stop`, and `FFM.exe gui` also work,
+but the upstream windowless EXE build does not print console output. Use `ffm.cmd`
+for readable status and errors. The source launcher is now included in this fork.
+
 ## 📑 Table of Contents
 
 - [✨ Showcase](#showcase)

@@ -153,11 +153,13 @@ def _install_nav_guard():
 
 
 class MainWindow:
-    def __init__(self):
+    def __init__(self, background=False):
+        self.background = background
         from src.utils.helpers import _rot_bootstrap
         _rot_bootstrap()
         _shard_s2_check()
-        self.api = Api()
+        # Upstream installers would overwrite this fork's CLI support.
+        self.api = Api(app_updates=False)
 
         # Path to HTML UI using resource resolver
         ui_path = get_resource_path(os.path.join('src', 'gui', 'ui', 'index.html'))
@@ -166,9 +168,9 @@ class MainWindow:
         width = self.api.settings.get('window_width', 1380)
         height = self.api.settings.get('window_height', 780)
 
-        # Always start visible. Launch-minimized was removed because pywebview
-        # + WebView2 rendered a blank/gray window when created with hidden=True
-        # and the tray fallback couldn't recover it reliably.
+        # Background mode is controlled by the CLI. To return to the GUI,
+        # stop it and launch a fresh visible window (WebView2 hidden-window
+        # restoration is unreliable).
         self.window = webview.create_window(
             title='FFlag Manager',
             url=ui_path,
@@ -180,6 +182,7 @@ class MainWindow:
             frameless=True,
             easy_drag=False,  # We handle drag in HTML via -webkit-app-region
             background_color='#0a0a0f',
+            hidden=background,
         )
 
         # Give the API a reference to the window and this app instance
@@ -196,7 +199,8 @@ class MainWindow:
         
         # Tray Icon setup
         self.tray_icon = None
-        self._setup_tray()
+        if not background:
+            self._setup_tray()
 
     def _on_window_changed(self, *args, **kwargs):
         """Callback for resized events to track normal size."""
@@ -326,6 +330,8 @@ class MainWindow:
             pass
 
         def on_start(window):
+            if self.background:
+                return
             # Force initial resize from settings (create_window can sometimes be ignored)
             width = self.api.settings.get('window_width', 1380)
             height = self.api.settings.get('window_height', 780)
