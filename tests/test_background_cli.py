@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.cli import Events, main, stop_app
+from src.cli import Events, main, stop_app, request_apply
 
 
 @pytest.fixture
@@ -85,3 +85,68 @@ def test_invalid_background_command():
     with pytest.raises(SystemExit) as exc:
         main(['status', '--background'])
     assert exc.value.code == 2
+
+
+def test_apply_when_stopped(events):
+    with pytest.raises(RuntimeError, match='not ready'):
+        request_apply(events)
+
+
+def test_apply_old_running_instance(events):
+    stop = events.create('-stop')
+    ready = events.create('-ready')
+    try:
+        events.signal(ready)
+        with pytest.raises(RuntimeError, match='ffm stop'):
+            request_apply(events)
+    finally:
+        events.close(ready)
+        events.close(stop)
+
+
+def test_apply_event_resets_after_one_request(events):
+    handle = events.create('-apply', manual_reset=False)
+    try:
+        events.signal(handle)
+        assert events.wait(handle, 0)
+        assert not events.wait(handle, 0)
+    finally:
+        events.close(handle)
+
+
+def test_apply_dispatch_across_processes(events):
+    script = '''
+import sys, threading, time
+from src.cli import Events, watch_apply
+events = Events()
+events.prefix = sys.argv[1]
+stop = events.create('-stop')
+ready = events.create('-ready')
+apply = events.create('-apply', manual_reset=False)
+shutdown = threading.Event()
+class Api:
+    def inject_user(self):
+        print('applied', flush=True)
+worker = threading.Thread(target=watch_apply, args=(events, apply, Api(), shutdown))
+worker.start()
+events.signal(ready)
+print('ready', flush=True)
+events.wait(stop, 10000)
+shutdown.set()
+worker.join()
+for handle in (apply, ready, stop):
+    events.close(handle)
+'''
+    child = subprocess.Popen([sys.executable, '-c', script, events.prefix], stdout=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout.readline().strip() == 'ready'
+        for _ in range(2):
+            assert request_apply(events) == 0
+            assert child.stdout.readline().strip() == 'applied'
+        assert stop_app(events) == 0
+        assert child.wait(timeout=5) == 0
+        assert child.stdout.read() == ''  # no repeated apply from a stuck event
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait()

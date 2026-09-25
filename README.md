@@ -39,6 +39,7 @@ Configure your flags, hotkeys and Auto Apply in the GUI, then fully exit it.
 ```bat
 ffm start
 ffm status
+ffm apply
 ffm stop
 ffm gui
 ```
@@ -48,6 +49,15 @@ button, tray icon, or extra console. You may close CMD afterward. The existing
 WebView and app workers still run, using saved settings; Auto Apply must already
 be enabled if you want automatic application. This is not a reduced-memory
 headless engine. The process remains visible in Task Manager.
+
+`apply` requests the same action as the GUI Apply button in the running instance,
+including resuming flags if paused. It reapplies the flags already loaded by the
+app; it does not reload externally edited files or download offsets. The command
+confirms the request was sent, not that flags successfully applied. Results are
+logged in `%USERPROFILE%\.FFlagManager\logs\fflag_manager.log`. The existing apply
+sound remains conditional on a successful apply and your sound settings.
+After updating an already running copy, run `ffm stop` and `ffm start` once to
+enable this command.
 
 `status` returns exit code 0 when ready, 1 when starting/stopped. `stop` uses the
 normal application shutdown/cleanup. Stop before reopening the GUI; restoring

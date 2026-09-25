@@ -26,8 +26,8 @@ class Events:
         identity = hashlib.sha256(str(Path.home()).lower().encode()).hexdigest()[:24]
         self.prefix = 'Local\\FFM-CLI-' + identity
 
-    def create(self, name):
-        handle = self.dll.CreateEventW(None, True, False, self.prefix + name)
+    def create(self, name, manual_reset=True):
+        handle = self.dll.CreateEventW(None, manual_reset, False, self.prefix + name)
         error = ctypes.get_last_error()
         if not handle:
             raise ctypes.WinError(error)
@@ -69,11 +69,40 @@ class Events:
             self.close(ready)
 
 
+def watch_apply(events, handle, api, shutdown):
+    """Dispatch requests through the same entry point as the GUI Apply button."""
+    from src.utils.logger import log
+    while not shutdown.is_set():
+        if events.wait(handle, 250):
+            try:
+                api.inject_user()
+            except Exception as exc:
+                log(f'[-] CLI apply request failed: {exc}', (255, 100, 100))
+
+
+def request_apply(events):
+    if events.state() != 'running':
+        raise RuntimeError('FFM is not ready. Run ffm start and check ffm status first.')
+    handle = events.open('-apply', 0x0002)
+    if not handle:
+        raise RuntimeError('This running instance needs an update. Run ffm stop, then ffm start.')
+    try:
+        events.signal(handle)
+    finally:
+        events.close(handle)
+    print('Apply requested (same as the GUI Apply button). Check the FFM log for results.')
+    return 0
+
+
 def run_app(events, background):
     stop = events.create('-stop')
     ready = None
+    apply = None
+    apply_worker = None
+    shutdown = threading.Event()
     try:
         ready = events.create('-ready')
+        apply = events.create('-apply', manual_reset=False)
         from src.gui.main_window import MainWindow
         app = MainWindow(background=background)
         if app.api._init_error:
@@ -87,9 +116,16 @@ def run_app(events, background):
             app.api.exit_app()
 
         app.window.events.loaded += loaded
+        apply_worker = threading.Thread(target=watch_apply, args=(events, apply, app.api, shutdown), daemon=True)
+        apply_worker.start()
         threading.Thread(target=watch_stop, daemon=True).start()
         app.run()
     finally:
+        shutdown.set()
+        if apply_worker:
+            apply_worker.join()
+        if apply:
+            events.close(apply)
         if ready:
             events.close(ready)
         events.close(stop)
@@ -141,7 +177,7 @@ def stop_app(events):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='FFM window and background controls (Windows).')
-    parser.add_argument('command', nargs='?', default='gui', choices=['gui', 'start', 'stop', 'status', 'run'])
+    parser.add_argument('command', nargs='?', default='gui', choices=['gui', 'start', 'stop', 'status', 'apply', 'run'])
     parser.add_argument('--background', action='store_true', help='With run: hide the window and omit the tray icon')
     args = parser.parse_args(argv)
     if args.background and args.command != 'run':
@@ -154,6 +190,8 @@ def main(argv=None):
             return start(events)
         if args.command == 'stop':
             return stop_app(events)
+        if args.command == 'apply':
+            return request_apply(events)
         if args.command == 'status':
             state = events.state()
             print('FFM: ' + state)
