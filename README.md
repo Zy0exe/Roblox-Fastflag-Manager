@@ -55,7 +55,9 @@ including resuming flags if paused. It reapplies the flags already loaded by the
 app; it does not reload externally edited files or download offsets. The command
 confirms the request was sent, not that flags successfully applied. Results are
 logged in `%USERPROFILE%\.FFlagManager\logs\fflag_manager.log`. The existing apply
-sound remains conditional on a successful apply and your sound settings.
+sound remains conditional on a successful apply and your sound settings. Apply
+chimes use Windows audio directly, so hidden-browser autoplay restrictions do
+not silence them. Playback errors are written to the same log.
 After updating an already running copy, run `ffm stop` and `ffm start` once to
 enable this command.
 

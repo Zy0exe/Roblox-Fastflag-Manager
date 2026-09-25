@@ -8,6 +8,7 @@ import webview
 from src.utils.updater import check_for_updates, perform_silent_update, get_current_version, apply_staged_update, download_update
 from src.utils.logger import log, get_logs, get_logs_since
 from src.utils.config import Config
+from src.utils.sound import play_apply_sound
 from src.utils.helpers import infer_type, infer_type_from_name, clean_flag_name, get_flag_prefix, get_default_value, strip_bogus_dflag_prefix, heal_dflag_flag_names
 from src.core.roblox_manager import RobloxManager
 from src.core.flag_manager import FlagManager
@@ -1856,7 +1857,7 @@ class Api:
         skip_json=True does a memory-only injection (used by Scheduled Apply
         so the delay is real and Roblox can't read the flags from JSON at
         startup).
-        play_sound=True plays the apply chime in the UI when >=1 flag is
+        play_sound=True plays the apply chime through Windows when >=1 flag is
         applied (manual Apply + first auto-apply only; A3).
         """
         if not self.flag_manager or not self.roblox_manager:
@@ -1888,13 +1889,9 @@ class Api:
                 traceback.print_exc()
             finally:
                 self._is_applying = False
+                if play_sound and applied_count >= 1:
+                    play_apply_sound(self.settings)
                 if self._window:
-                    # Play the apply chime only for sound-triggering applies
-                    # (manual / first auto-apply) that actually applied >=1 flag.
-                    play_js = (
-                        "if (typeof playApplySound === 'function') playApplySound();"
-                        if (play_sound and applied_count >= 1) else ""
-                    )
                     self._window.evaluate_js("""
                         var btn = document.getElementById('inject-btn');
                         if (btn) {
@@ -1902,7 +1899,7 @@ class Api:
                             btn.textContent = 'Apply Flags';
                         }
                         if (typeof refreshConfig === 'function') refreshConfig();
-                        """ + play_js)
+                        """)
                 # If something requested an apply while we were busy, run once
                 # more so late edits/adds aren't lost.
                 if getattr(self, '_apply_pending', False):
